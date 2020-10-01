@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"time"
+	"errors"
 )
 
 // VerifySignature validate inapp order or subscription data signature. Returns nil if pass.
@@ -88,6 +89,47 @@ func (c *Client) GetSubscriptionDataString(ctx context.Context, purchaseToken, s
 	}
 
 	return resp.InappPurchaseData, nil
+}
+
+// OrderConfirmResponse JSON response from {rootUrl}/applications/v2/purchases/confirm
+type ConfirmResponse struct {
+	ResponseCode      string `json:"responseCode"`                // Response code, if = "0" means succeed, for others see https://developer.huawei.com/consumer/en/doc/HMSCore-References-V5/server-error-code-0000001050166248-V5
+	ResponseMessage   string `json:"responseMessage,omitempty"`   // Response descriptions, especially when error
+}
+
+func (c *Client) ConfirmOrder(ctx context.Context, purchaseToken, productID string, accountFlag int64) (bool, error) {
+
+	data, err := c.GetConfirmOrderResponseData(ctx, purchaseToken, productID, accountFlag)
+	if err != nil {
+		return false, err
+	}
+	if data.ResponseCode == "0" || data.ResponseCode == "9" {
+		return true, nil
+	}
+	return false, errors.New(data.ResponseMessage)
+}
+
+func (c *Client) GetConfirmOrderResponseData(ctx context.Context, purchaseToken, productID string, accountFlag int64) (ConfirmResponse, error) {
+	bodyMap := map[string]string{
+		"purchaseToken": purchaseToken,
+		"productId":     productID,
+	}
+	url := c.getRootOrderURLByFlag(accountFlag) + "/applications/v2/purchases/confirm"
+
+	var resp ConfirmResponse
+	bodyBytes, err := c.sendJSONRequest(ctx, url, bodyMap)
+	if err != nil {
+		return resp, err
+	}
+
+	if err := json.Unmarshal(bodyBytes, &resp); err != nil {
+		return resp, err
+	}
+	if err := c.getResponseErrorByCode(resp.ResponseCode); err != nil {
+		return resp, err
+	}
+
+	return resp, nil
 }
 
 // OrderVerifyResponse JSON response from {rootUrl}/applications/purchases/tokens/verify
