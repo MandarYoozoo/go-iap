@@ -183,7 +183,7 @@ func (c *Client) GetOrderDataString(ctx context.Context, purchaseToken, productI
 		return "", "", err
 	}
 	if err := c.getResponseErrorByCode(resp.ResponseCode); err != nil {
-		return "", "", err
+		return "", "", errors.New(resp.ResponseMessage)
 	}
 
 	return resp.PurchaseTokenData, resp.DataSignature, nil
